@@ -11,6 +11,12 @@ export interface EligibilityCategory {
   description: string;
   items: string[];
   aliases: string[];
+  limits?: {
+    unitValueUsd?: number;
+    maxUnitsPerRecipient?: number;
+    maxWeightKgPerRecipient?: number;
+    note: string;
+  };
 }
 
 export interface EligibilityMatch {
@@ -68,6 +74,69 @@ const getTokens = (value: string) =>
     .split(' ')
     .filter((token) => token.length > 2 && !stopWords.has(token));
 
+const extractUsdPrices = (value: string) => {
+  const prices: number[] = [];
+  const patterns = [
+    /(?:\$|us\$|usd|долл\.?|доллар[а-я]*)\s*(\d{2,6}(?:[.,]\d{1,2})?)/gi,
+    /(\d{2,6}(?:[.,]\d{1,2})?)\s*(?:\$|us\$|usd|долл\.?|доллар[а-я]*)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const rawPrice = match[1]?.replace(',', '.');
+      const price = rawPrice ? Number(rawPrice) : NaN;
+      if (Number.isFinite(price)) prices.push(price);
+    }
+  }
+
+  return prices;
+};
+
+const extractQuantities = (value: string) => {
+  const quantities: number[] = [];
+  const patterns = [
+    /(?:qty|quantity|кол-?во|количество)\s*[:=]?\s*(\d{1,3})/gi,
+    /(\d{1,3})\s*(?:шт\.?|штук[аи]?|ед\.?|единиц[аы]?|pcs?|pieces?|units?)/gi,
+    /(?:x|х|×)\s*(\d{1,3})/gi,
+    /(\d{1,3})\s*(?:x|х|×)\b/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of value.matchAll(pattern)) {
+      const quantity = Number(match[1]);
+      if (Number.isFinite(quantity)) quantities.push(quantity);
+    }
+  }
+
+  return quantities;
+};
+
+const extractWeightsKg = (value: string) => {
+  const weights: number[] = [];
+  const kgPattern = /(\d{1,4}(?:[.,]\d{1,3})?)\s*(?:кг|kg|kilograms?)(?=$|[^a-zа-я0-9])/giu;
+  const gramPattern = /(\d{2,6}(?:[.,]\d{1,2})?)\s*(?:грамм[а-я]*|гр\.?|г|grams?|gr|g)(?=$|[^a-zа-я0-9])/giu;
+
+  for (const match of value.matchAll(kgPattern)) {
+    const rawWeight = match[1]?.replace(',', '.');
+    const weight = rawWeight ? Number(rawWeight) : NaN;
+    if (Number.isFinite(weight)) weights.push(weight);
+  }
+
+  for (const match of value.matchAll(gramPattern)) {
+    const rawWeight = match[1]?.replace(',', '.');
+    const weight = rawWeight ? Number(rawWeight) / 1000 : NaN;
+    if (Number.isFinite(weight)) weights.push(weight);
+  }
+
+  return weights;
+};
+
+const getQuerySignals = (query: string) => ({
+  highestUsdPrice: Math.max(0, ...extractUsdPrices(query)),
+  highestQuantity: Math.max(0, ...extractQuantities(query)),
+  highestWeightKg: Math.max(0, ...extractWeightsKg(query)),
+});
+
 const scoreTerm = (query: string, term: string) => {
   const normalizedTerm = normalizeSearchText(term);
   if (!query || !normalizedTerm) return 0;
@@ -99,12 +168,16 @@ const scoreTerm = (query: string, term: string) => {
 export const buildEligibilityMailto = (query: string) => {
   const product = query.trim() || 'новая категория товара';
   const subject = `Проверка товара: ${product}`;
-  const body = [
+const body = [
     'Здравствуйте, USource Direct.',
     '',
     `Хочу проверить товар/категорию: ${product}`,
     '',
     'Ссылка на товар в США:',
+    '',
+    'Цена товара в США за единицу:',
+    '',
+    'Количество единиц на получателя:',
     '',
     'Канал продаж / аудитория:',
     '',
@@ -120,10 +193,77 @@ const makeUnknownResult = (query: string): EligibilityCheckResult => ({
   status: 'unknown',
   title: 'Статус: Не найдено в списках',
   details:
-    'Товар не обнаружен ни в одном из наших предварительных списков. Это не означает, что он подходит или запрещен: нужна ручная проверка конкретной ссылки, состава, бренда, продавца и маршрута доставки.',
+    'Товар не обнаружен ни в одном из наших предварительных списков. Это не означает, что он подходит или запрещен: нужна ручная проверка конкретной ссылки, состава, цены за единицу, продавца и маршрута доставки.',
   badge: 'Отправить на проверку',
   mailtoHref: buildEligibilityMailto(query),
 });
+
+const formatCategoryLimit = (category: EligibilityCategory) => {
+  if (!category.limits) return '';
+
+  const parts = [];
+  if (category.limits.unitValueUsd) {
+    parts.push(`до $${category.limits.unitValueUsd} за единицу`);
+  }
+  if (category.limits.maxUnitsPerRecipient) {
+    parts.push(`не больше ${category.limits.maxUnitsPerRecipient} единиц в одни руки`);
+  }
+  if (category.limits.maxWeightKgPerRecipient) {
+    parts.push(`не более ${category.limits.maxWeightKgPerRecipient} кг на 1 получателя`);
+  }
+
+  return parts.join(', ');
+};
+
+const makeLimitResult = (
+  query: string,
+  match: EligibilityMatch,
+  violations: string[]
+): EligibilityCheckResult => ({
+  status: 'restricted',
+  title: 'Статус: Ограничено лимитом категории',
+  details: `Для этой категории в частной отправке действует лимит: ${formatCategoryLimit(
+    match.category
+  )}. ${violations.join(' ')} Нужен отдельный маршрут или ручное подтверждение.`,
+  badge: 'Превышен лимит',
+  matchedCategory: match.category.title,
+  matchedTerm: match.matchedTerm,
+  mailtoHref: buildEligibilityMailto(query),
+});
+
+const getLimitResult = (query: string, match: EligibilityMatch) => {
+  const { limits } = match.category;
+  if (!limits) return null;
+
+  const signals = getQuerySignals(query);
+  const violations: string[] = [];
+
+  if (limits.unitValueUsd && signals.highestUsdPrice > limits.unitValueUsd) {
+    violations.push(
+      `В запросе обнаружена цена $${signals.highestUsdPrice.toFixed(2)} за единицу.`
+    );
+  }
+
+  if (
+    limits.maxUnitsPerRecipient &&
+    signals.highestQuantity > limits.maxUnitsPerRecipient
+  ) {
+    violations.push(
+      `В запросе обнаружено количество ${signals.highestQuantity}, что выше лимита.`
+    );
+  }
+
+  if (
+    limits.maxWeightKgPerRecipient &&
+    signals.highestWeightKg > limits.maxWeightKgPerRecipient
+  ) {
+    violations.push(
+      `В запросе обнаружен вес ${signals.highestWeightKg.toFixed(2)} кг, что выше лимита.`
+    );
+  }
+
+  return violations.length ? makeLimitResult(query, match, violations) : null;
+};
 
 const makeResult = (
   match: EligibilityMatch,
@@ -134,12 +274,12 @@ const makeResult = (
     approved: {
       title: 'Статус: Одобрен для пилота',
       details:
-        'Категория обычно подходит для первичного пилота: понятная потребительская логистика, низкий регуляторный риск и возможность штучного выкупа после заказа.',
+        'Категория обычно подходит для частной отправки: понятная потребительская логистика, низкий регуляторный риск и возможность штучного выкупа после заказа.',
     },
     review: {
       title: 'Статус: Требует уточнения',
       details:
-        'Категория требует индивидуального анализа: состав, брендовые права, сертификация, батареи, габариты, хрупкость или требования перевозчика могут изменить решение.',
+        'Категория требует индивидуального анализа: состав, сертификация, батареи, габариты, хрупкость или требования перевозчика могут изменить решение.',
     },
     restricted: {
       title: 'Статус: Ограничено',
@@ -149,14 +289,21 @@ const makeResult = (
     rejected: {
       title: 'Статус: Не подходит',
       details:
-        'Категория имеет высокий риск запрета, санкционного контроля, dual-use, опасного груза или иных ограничений. Для B2C/B2B пилота по умолчанию не принимается.',
+        'Категория имеет высокий риск запрета, санкционного контроля, dual-use, опасного груза или иных ограничений. Для модели частной отправки по умолчанию не принимается.',
     },
   };
+
+  const details =
+    category.id === 'brand-luxury' || category.id === 'apparel-footwear'
+      ? 'Бренд сам по себе не является причиной для отказа в модели частной отправки. Проверяем оригинальность товара, продавца и главное условие: цена до $300 за единицу.'
+      : statusCopy[category.status].details;
+  const limitText = formatCategoryLimit(category);
+  const detailsWithLimit = limitText ? `${details} Лимит категории: ${limitText}.` : details;
 
   return {
     status: category.status,
     title: statusCopy[category.status].title,
-    details: `${statusCopy[category.status].details} Совпадение: ${matchedTerm}.`,
+    details: `${detailsWithLimit} Совпадение: ${matchedTerm}.`,
     badge: category.badgeText,
     matchedCategory: category.title,
     matchedTerm,
@@ -224,18 +371,22 @@ export const ELIGIBILITY_CATEGORIES: EligibilityCategory[] = [
     status: 'approved',
     title: 'Путешествия, сумки и everyday carry',
     badgeText: 'Одобрено по умолчанию',
-    description: 'Сумки и аксессуары без встроенных батарей, GPS-трекеров и брендовых ограничений.',
+    description: 'Сумки и аксессуары без встроенных батарей, GPS-трекеров и признаков контрафакта.',
     items: ['рюкзаки', 'несессеры', 'упаковочные кубы', 'чехлы для чемодана', 'багажные бирки', 'кошельки'],
     aliases: ['backpack', 'travel pouch', 'packing cubes', 'luggage tag', 'wallet', 'edc pouch', 'travel organizer', 'сумка', 'рюкзак', 'органайзер для путешествий'],
   },
   {
     id: 'apparel-footwear',
     status: 'approved',
-    title: 'Одежда и обувь средних или нишевых брендов',
-    badgeText: 'Одобрено по умолчанию',
-    description: 'Одежда и обувь без санкционных, luxury, counterfeit и брендовых рисков.',
-    items: ['футболки', 'худи', 'кроссовки нишевых брендов', 'носки', 'головные уборы', 'ремни из обычных материалов'],
-    aliases: ['clothing', 'hoodie', 'sneakers', 't shirt', 'cap', 'socks', 'streetwear', 'independent brand hoodie', 'non luxury sneakers', 'одежда из США', 'обувь нишевого бренда'],
+    title: 'Одежда, обувь и fashion-бренды до $300',
+    badgeText: 'Частная отправка до $300',
+    description: 'Бренд сам по себе не является причиной для отказа; проверяем оригинальность и лимит стоимости за единицу.',
+    items: ['брендовая одежда', 'брендовая обувь', 'кроссовки', 'худи', 'головные уборы', 'аксессуары до $300'],
+    aliases: ['clothing', 'hoodie', 'sneakers', 't shirt', 'cap', 'socks', 'streetwear', 'nike shoes', 'nike sneakers', 'adidas shoes', 'обувь nike', 'adidas обувь', 'одежда из США'],
+    limits: {
+      unitValueUsd: 300,
+      note: 'Брендовые fashion-товары допускаются в частной отправке при цене до $300 за единицу.',
+    },
   },
   {
     id: 'pet-accessories',
@@ -293,21 +444,30 @@ export const ELIGIBILITY_CATEGORIES: EligibilityCategory[] = [
   },
   {
     id: 'portable-electronics',
-    status: 'review',
+    status: 'approved',
     title: 'Портативная электроника и гаджеты',
-    badgeText: 'Индивидуальный комплаенс',
-    description: 'Проверяются аккумуляторы, радио-модули, сертификация, гарантийные риски, стоимость и end-use.',
-    items: ['наушники', 'умные часы', 'электронные аксессуары', 'трекеры', 'портативные лампы', 'малые гаджеты'],
-    aliases: ['electronics', 'gadget', 'headphones', 'earbuds', 'smart watch', 'fitness tracker', 'bluetooth speaker', 'электроника', 'airpods', 'умные часы'],
+    badgeText: 'До $2500 / 2 ед.',
+    description: 'Бытовая электроника допускается для частной отправки при лимите стоимости и количества на получателя.',
+    items: ['смартфоны', 'ноутбуки', 'планшеты', 'наушники', 'умные часы', 'малые гаджеты'],
+    aliases: ['electronics', 'gadget', 'headphones', 'earbuds', 'smart watch', 'fitness tracker', 'bluetooth speaker', 'smartphone', 'phone', 'iphone', 'laptop', 'macbook', 'ipad', 'tablet', 'электроника', 'айфон', 'ноутбук', 'планшет', 'airpods', 'умные часы'],
+    limits: {
+      unitValueUsd: 2500,
+      maxUnitsPerRecipient: 2,
+      note: 'Электроника допускается до $2500 за единицу и не больше 2 единиц в одни руки.',
+    },
   },
   {
     id: 'brand-luxury',
-    status: 'review',
-    title: 'Брендовые позиции и high-value consumer goods',
-    badgeText: 'Индивидуальный комплаенс',
-    description: 'Нужна проверка оригинальности, прав, лимитов стоимости, luxury restrictions и продавца.',
-    items: ['брендовая одежда', 'брендовая обувь', 'премиальные аксессуары', 'лимитированные коллекции', 'designer goods', 'редкие коллекционные товары'],
-    aliases: ['luxury brand', 'designer bag', 'limited edition sneakers', 'premium watch', 'nike shoes', 'nike sneakers', 'adidas shoes', 'брендовая сумка', 'обувь nike', 'adidas обувь', 'louis vuitton', 'gucci', 'supreme', 'jordan limited'],
+    status: 'approved',
+    title: 'Брендовые consumer goods и premium accessories до $300',
+    badgeText: 'Частная отправка до $300',
+    description: 'Оригинальные брендовые товары допускаются в частной отправке при соблюдении лимита стоимости за единицу.',
+    items: ['брендовые аксессуары', 'premium fashion', 'лимитированные коллекции', 'designer goods до $300', 'редкие коллекционные товары до $300', 'брендовые сумки до $300'],
+    aliases: ['luxury brand', 'designer bag', 'limited edition sneakers', 'premium watch', 'брендовая сумка', 'louis vuitton', 'gucci', 'supreme', 'jordan limited', 'брендовый аксессуар'],
+    limits: {
+      unitValueUsd: 300,
+      note: 'Оригинальные брендовые товары допускаются в частной отправке при цене до $300 за единицу.',
+    },
   },
   {
     id: 'fragile-items',
@@ -338,12 +498,17 @@ export const ELIGIBILITY_CATEGORIES: EligibilityCategory[] = [
   },
   {
     id: 'small-appliances',
-    status: 'review',
+    status: 'approved',
     title: 'Бытовая техника и устройства с питанием',
-    badgeText: 'Индивидуальный комплаенс',
-    description: 'Проверяются напряжение, вилки, нагревательные элементы, аккумуляторы, сертификаты и возвратные риски.',
+    badgeText: 'До $2500 / 2 ед.',
+    description: 'Consumer-устройства с питанием допускаются при лимите стоимости и количества; опасные батареи выделяются отдельно.',
     items: ['мини-приборы', 'кухонная техника', 'устройства ухода', 'электрические щетки', 'портативные вентиляторы', 'лампы'],
     aliases: ['small appliance', 'electric toothbrush', 'portable fan', 'desk lamp', 'kitchen appliance', 'hair dryer', 'электрическая щетка', 'фен', 'лампа'],
+    limits: {
+      unitValueUsd: 2500,
+      maxUnitsPerRecipient: 2,
+      note: 'Бытовая электроника допускается до $2500 за единицу и не больше 2 единиц в одни руки.',
+    },
   },
   {
     id: 'wellness-devices',
@@ -365,12 +530,17 @@ export const ELIGIBILITY_CATEGORIES: EligibilityCategory[] = [
   },
   {
     id: 'wireless-smart-home',
-    status: 'review',
+    status: 'approved',
     title: 'Smart home, Bluetooth и Wi-Fi устройства',
-    badgeText: 'Индивидуальный комплаенс',
-    description: 'Проверяются радио-модули, шифрование, аккумуляторы, совместимость и end-use.',
+    badgeText: 'До $2500 / 2 ед.',
+    description: 'Consumer smart-home и беспроводные устройства допускаются при лимите стоимости и количества; скрытое наблюдение выделяется отдельно.',
     items: ['умные лампы', 'датчики', 'bluetooth-аксессуары', 'wi-fi устройства', 'трекеры', 'умные кнопки'],
     aliases: ['smart home', 'wifi device', 'bluetooth device', 'airtag', 'tracker', 'smart bulb', 'умный дом', 'датчик движения', 'gps tracker'],
+    limits: {
+      unitValueUsd: 2500,
+      maxUnitsPerRecipient: 2,
+      note: 'Consumer electronics допускается до $2500 за единицу и не больше 2 единиц в одни руки.',
+    },
   },
   {
     id: 'art-antiques',
@@ -562,13 +732,26 @@ export const ELIGIBILITY_CATEGORIES: EligibilityCategory[] = [
     aliases: ['drilling equipment', 'oil gas equipment', 'pressure pump', 'valve', 'compressor', 'seismic equipment', 'буровая', 'нефтегаз', 'скважина'],
   },
   {
-    id: 'drugs-supplements',
+    id: 'supplements-vitamins',
+    status: 'approved',
+    title: 'БАДы, витамины и wellness supplements до 2 кг',
+    badgeText: 'До 2 кг / получатель',
+    description: 'БАДы и витамины допускаются для частной отправки при лимите веса на одного получателя.',
+    items: ['БАДы', 'витамины', 'минералы', 'protein supplements', 'omega-3', 'wellness supplements'],
+    aliases: ['supplement', 'supplements', 'vitamin', 'vitamins', 'minerals', 'protein powder', 'omega 3', 'fish oil', 'collagen', 'magnesium', 'бад', 'бады', 'витамины', 'омега 3', 'рыбий жир', 'коллаген', 'магний'],
+    limits: {
+      maxWeightKgPerRecipient: 2,
+      note: 'БАДы и витамины допускаются при весе не более 2 кг на 1 получателя.',
+    },
+  },
+  {
+    id: 'prescription-drugs',
     status: 'rejected',
-    title: 'Лекарства, БАДы, рецептурные препараты и controlled substances',
+    title: 'Лекарства, рецептурные препараты и controlled substances',
     badgeText: 'Запрещено к работе',
-    description: 'Лекарственные и ingestible health products не принимаются в пилотную модель.',
-    items: ['лекарства', 'БАДы', 'витамины с лечебными claims', 'рецептурные препараты', 'стероиды', 'controlled substances'],
-    aliases: ['medicine', 'drug', 'prescription', 'supplement', 'vitamin', 'steroid', 'cbd', 'лекарство', 'бад', 'витамины', 'таблетки'],
+    description: 'Лекарства, рецептурные препараты, controlled substances и лечебные claims не принимаются в пилотную модель.',
+    items: ['лекарства', 'рецептурные препараты', 'стероиды', 'controlled substances', 'наркотические вещества', 'лекарственные препараты'],
+    aliases: ['medicine', 'drug', 'prescription', 'rx drug', 'steroid', 'cbd', 'controlled substance', 'лекарство', 'рецептурный препарат', 'таблетки', 'стероиды'],
   },
   {
     id: 'dangerous-goods',
@@ -621,6 +804,7 @@ const searchableTermsFor = (category: EligibilityCategory) => [
   category.title,
   category.description,
   category.badgeText,
+  category.limits?.note ?? '',
   ...category.items,
   ...category.aliases,
 ];
@@ -655,6 +839,11 @@ export const checkEligibility = (query: string): EligibilityCheckResult => {
   }
 
   if (!bestMatch || bestMatch.score < 52) return makeUnknownResult(query);
+  if (bestMatch.category.status !== 'rejected') {
+    const limitResult = getLimitResult(query, bestMatch);
+    if (limitResult) return limitResult;
+  }
+
   return makeResult(bestMatch, query);
 };
 
