@@ -7,7 +7,7 @@ import {
   EligibilityCategory,
 } from '../types';
 
-export const EMAIL_ADDRESS = 'partners@usource.direct';
+export const EMAIL_ADDRESS = 'go@usourcedirect.com';
 export const DOMAIN_NAME = 'usourcedirect.com';
 
 export const PROBLEM_CARDS: ProblemCard[] = [
@@ -425,7 +425,7 @@ export const FAQ_ITEMS: FAQItem[] = [
     id: 'faq-21',
     category: 'pilot',
     question: 'Как стать пилотным партнером?',
-    answer: 'Напишите нам письмо на partners@usource.direct с описанием вашего проекта, ссылкой на канал/магазин, описанием аудитории и примерами товаров из США, которые вы хотели бы протестировать.',
+    answer: 'Напишите нам письмо на go@usourcedirect.com с описанием вашего проекта, ссылкой на канал/магазин, описанием аудитории и примерами товаров из США, которые вы хотели бы протестировать.',
   },
   {
     id: 'faq-22',

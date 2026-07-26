@@ -82,7 +82,7 @@ export const Hero: React.FC<HeroProps> = ({ onCopyEmail }) => {
                 title="Скопировать e-mail"
               >
                 <Copy className="w-4 h-4 text-blue-400" />
-                <span className="hidden sm:inline">partners@usource.direct</span>
+                <span className="hidden sm:inline">go@usourcedirect.com</span>
               </button>
             </div>
 

@@ -115,7 +115,7 @@ export const FAQ: React.FC = () => {
         <div className="max-w-4xl mx-auto space-y-3">
           {filteredFaqs.length === 0 ? (
             <div className="p-8 text-center text-white/60 text-sm bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl">
-              По вашему запросу вопросов не найдено. Напишите нам напрямую на <strong className="text-blue-300 font-mono">partners@usource.direct</strong>!
+              По вашему запросу вопросов не найдено. Напишите нам напрямую на <strong className="text-blue-300 font-mono">go@usourcedirect.com</strong>!
             </div>
           ) : (
             filteredFaqs.map((faq) => {

@@ -49,7 +49,7 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({ onCopyEmail }) => {
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-4 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-mono text-xs backdrop-blur-md transition-all"
           >
             <Copy className="w-4 h-4 text-blue-400" />
-            <span>partners@usource.direct</span>
+            <span>go@usourcedirect.com</span>
           </button>
         </div>
 
