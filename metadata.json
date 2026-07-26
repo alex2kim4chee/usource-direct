@@ -1,0 +1,6 @@
+{
+  "name": "USource Direct",
+  "description": "Закупочная инфраструктура в США для российских продавцов",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
