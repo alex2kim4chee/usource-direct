@@ -3,11 +3,22 @@ import {
   ELIGIBILITY_CATEGORIES,
   buildEligibilityMailto,
   categoryMatchesQuery,
+  eligibilityStats,
   type EligibilityStatus,
 } from '../data/eligibilityCatalog';
-import { CheckCircle2, AlertCircle, XCircle, Search, Shield, Mail } from 'lucide-react';
+import {
+  CheckCircle2,
+  AlertCircle,
+  XCircle,
+  Search,
+  Shield,
+  Mail,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 type EligibilityFilter = 'all' | EligibilityStatus;
+const DEFAULT_CATEGORY_LIMIT = 6;
 
 const statusStyles: Record<
   EligibilityStatus,
@@ -47,6 +58,7 @@ const statusStyles: Record<
 export const ProductEligibility: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<EligibilityFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   const hasSearchQuery = searchQuery.trim().length > 0;
   const hasAnySearchMatch =
@@ -60,6 +72,16 @@ export const ProductEligibility: React.FC = () => {
 
   const showUnknownRequest = hasSearchQuery && !hasAnySearchMatch;
   const showFilterMismatch = hasSearchQuery && hasAnySearchMatch && filteredCategories.length === 0;
+  const shouldLimitCategories = !hasSearchQuery && !showAllCategories;
+  const visibleCategories = shouldLimitCategories
+    ? filteredCategories.slice(0, DEFAULT_CATEGORY_LIMIT)
+    : filteredCategories;
+  const hiddenCategoryCount = filteredCategories.length - visibleCategories.length;
+
+  const selectFilter = (filter: EligibilityFilter) => {
+    setSelectedFilter(filter);
+    setShowAllCategories(false);
+  };
 
   return (
     <section className="py-20 bg-[#0a0a0b] border-t border-white/10 relative">
@@ -85,17 +107,17 @@ export const ProductEligibility: React.FC = () => {
           {/* Status Tabs */}
           <div className="flex flex-wrap gap-1.5 text-xs font-medium w-full md:w-auto">
             <button
-              onClick={() => setSelectedFilter('all')}
+              onClick={() => selectFilter('all')}
               className={`px-3 py-2 rounded-xl transition-all ${
                 selectedFilter === 'all'
                   ? 'bg-white text-black font-bold shadow-md'
                   : 'bg-white/5 text-white/60 hover:text-white border border-white/10'
               }`}
             >
-              Все категории
+              Все {eligibilityStats.categories}
             </button>
             <button
-              onClick={() => setSelectedFilter('approved')}
+              onClick={() => selectFilter('approved')}
               className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                 selectedFilter === 'approved'
                   ? 'bg-emerald-500 text-black font-bold shadow-md'
@@ -103,10 +125,10 @@ export const ProductEligibility: React.FC = () => {
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Одобрено</span>
+              <span>Одобрено {eligibilityStats.byStatus.approved}</span>
             </button>
             <button
-              onClick={() => setSelectedFilter('review')}
+              onClick={() => selectFilter('review')}
               className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                 selectedFilter === 'review'
                   ? 'bg-amber-500 text-black font-bold shadow-md'
@@ -114,10 +136,10 @@ export const ProductEligibility: React.FC = () => {
               }`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>Проверка</span>
+              <span>Проверка {eligibilityStats.byStatus.review}</span>
             </button>
             <button
-              onClick={() => setSelectedFilter('restricted')}
+              onClick={() => selectFilter('restricted')}
               className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                 selectedFilter === 'restricted'
                   ? 'bg-orange-500 text-black font-bold shadow-md'
@@ -125,10 +147,10 @@ export const ProductEligibility: React.FC = () => {
               }`}
             >
               <AlertCircle className="w-3.5 h-3.5" />
-              <span>Ограничено</span>
+              <span>Ограничено {eligibilityStats.byStatus.restricted}</span>
             </button>
             <button
-              onClick={() => setSelectedFilter('rejected')}
+              onClick={() => selectFilter('rejected')}
               className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                 selectedFilter === 'rejected'
                   ? 'bg-rose-500 text-black font-bold shadow-md'
@@ -136,7 +158,7 @@ export const ProductEligibility: React.FC = () => {
               }`}
             >
               <XCircle className="w-3.5 h-3.5" />
-              <span>Запрещено</span>
+              <span>Запрещено {eligibilityStats.byStatus.rejected}</span>
             </button>
           </div>
 
@@ -146,7 +168,10 @@ export const ProductEligibility: React.FC = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowAllCategories(false);
+              }}
               placeholder="Поиск товара (например, обувь)..."
               className="w-full bg-white/5 border border-white/10 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-white/40 focus:outline-none focus:border-white/30 transition-colors"
             />
@@ -156,45 +181,68 @@ export const ProductEligibility: React.FC = () => {
 
         {/* Category Cards Display */}
         {filteredCategories.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          {filteredCategories.map((cat) => {
-            const style = statusStyles[cat.status];
-            return (
-            <div
-              key={cat.id}
-              className={`p-6 rounded-3xl backdrop-blur-xl border flex flex-col justify-between shadow-2xl transition-all ${style.card}`}
-            >
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border ${style.badge}`}>
-                    {cat.badgeText}
-                  </span>
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+              {visibleCategories.map((cat) => {
+                const style = statusStyles[cat.status];
+                return (
+                  <div
+                    key={cat.id}
+                    className={`p-6 rounded-3xl backdrop-blur-xl border flex flex-col justify-between shadow-2xl transition-all ${style.card}`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border ${style.badge}`}>
+                          {cat.badgeText}
+                        </span>
 
-                  {React.createElement(style.Icon, {
-                    className: `w-5 h-5 ${style.icon}`,
-                  })}
-                </div>
+                        {React.createElement(style.Icon, {
+                          className: `w-5 h-5 ${style.icon}`,
+                        })}
+                      </div>
 
-                <h3 className="text-base font-bold text-white mb-2">{cat.title}</h3>
-                <p className="text-xs text-white/60 mb-4 leading-relaxed">{cat.description}</p>
+                      <h3 className="text-base font-bold text-white mb-2">{cat.title}</h3>
+                      <p className="text-xs text-white/60 mb-4 leading-relaxed">{cat.description}</p>
 
-                <ul className="space-y-2 text-xs text-white/80">
-                  {cat.items.map((item, itemIdx) => (
-                    <li key={itemIdx} className="flex items-start gap-2">
-                      <span className="text-white/40 font-mono">•</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      <ul className="space-y-2 text-xs text-white/80">
+                        {cat.items.map((item, itemIdx) => (
+                          <li key={itemIdx} className="flex items-start gap-2">
+                            <span className="text-white/40 font-mono">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-              <div className="mt-6 pt-3 border-t border-white/10 text-[11px] font-mono text-white/40 text-center">
-                Комплаенс фильтр USource Direct
-              </div>
+                    <div className="mt-6 pt-3 border-t border-white/10 text-[11px] font-mono text-white/40 text-center">
+                      Комплаенс фильтр USource Direct
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            );
-          })}
-          </div>
+
+            {!hasSearchQuery && filteredCategories.length > DEFAULT_CATEGORY_LIMIT && (
+              <div className="mb-10 flex justify-center">
+                <button
+                  onClick={() => setShowAllCategories((current) => !current)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-3 text-xs font-bold text-white transition-all hover:bg-white/15"
+                >
+                  {showAllCategories ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      <span>Свернуть каталог</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      <span>Показать ещё {hiddenCategoryCount}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {showUnknownRequest && (
