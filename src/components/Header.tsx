@@ -57,9 +57,6 @@ export const Header: React.FC<HeaderProps> = ({ onCopyEmail }) => {
           <div className="flex items-center justify-between">
             {/* Logo */}
             <a href="#" className="flex items-center gap-2.5 group">
-              <div className="w-8 h-8 bg-white text-black font-bold flex items-center justify-center rounded text-sm shadow-md group-hover:scale-105 transition-transform">
-                U
-              </div>
               <div className="flex flex-col">
                 <span className="font-bold text-lg tracking-tight text-white group-hover:text-white/80 transition-colors">
                   USource Direct
