@@ -1,0 +1,11 @@
+{
+  "name": "USource Direct",
+  "short_name": "USource Direct",
+  "description": "Закупочная инфраструктура в США для российских продавцов и нишевых e-commerce каналов.",
+  "lang": "ru-RU",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b"
+}

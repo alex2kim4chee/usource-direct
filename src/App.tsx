@@ -19,6 +19,7 @@ import { EmailInstructions } from './components/EmailInstructions';
 import { FAQ } from './components/FAQ';
 import { FinalCTA } from './components/FinalCTA';
 import { Footer } from './components/Footer';
+import { SeoJsonLd } from './components/SeoJsonLd';
 import { StickyMobileCTA } from './components/StickyMobileCTA';
 import { Toast } from './components/Toast';
 import { EMAIL_ADDRESS } from './data/landingData';
@@ -63,6 +64,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0b] text-white flex flex-col font-['Golos_Text',sans-serif] selection:bg-white/20 selection:text-white relative overflow-x-hidden">
+      <SeoJsonLd />
+
       {/* Mesh Background Ambient Glows */}
       <div className="fixed top-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/20 rounded-full blur-[140px] pointer-events-none z-0" />
       <div className="fixed bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-red-900/10 rounded-full blur-[140px] pointer-events-none z-0" />

@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://usourcedirect.com/sitemap.xml
+Host: usourcedirect.com
