@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Copy, ArrowUpRight } from 'lucide-react';
+import { Mail, ArrowUpRight } from 'lucide-react';
 import { EMAIL_ADDRESS } from '../data/landingData';
 
 interface StickyMobileCTAProps {
@@ -25,8 +25,9 @@ export const StickyMobileCTA: React.FC<StickyMobileCTAProps> = ({ onCopyEmail })
           onClick={onCopyEmail}
           className="p-3 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 backdrop-blur-md shrink-0"
           title="Скопировать e-mail"
+          aria-label="Скопировать e-mail"
         >
-          <Copy className="w-4 h-4 text-blue-400" />
+          <Mail className="w-4 h-4 text-blue-400" />
         </button>
       </div>
     </div>

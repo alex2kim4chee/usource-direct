@@ -32,7 +32,7 @@ export default function App() {
       navigator.clipboard
         .writeText(EMAIL_ADDRESS)
         .then(() => {
-          setToastMessage('E-mail скопирован');
+          setToastMessage('Email скопирован');
           setTimeout(() => setToastMessage(null), 3000);
         })
         .catch(() => {
@@ -53,7 +53,7 @@ export default function App() {
     textArea.select();
     try {
       document.execCommand('copy');
-      setToastMessage('E-mail скопирован');
+      setToastMessage('Email скопирован');
       setTimeout(() => setToastMessage(null), 3000);
     } catch (err) {
       setToastMessage('Ошибка копирования');

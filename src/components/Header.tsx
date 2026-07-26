@@ -89,7 +89,7 @@ export const Header: React.FC<HeaderProps> = ({ onCopyEmail }) => {
                 title="Скопировать e-mail"
                 aria-label="Скопировать e-mail"
               >
-                <Copy className="h-4 w-4 text-blue-400" />
+                <Mail className="h-4 w-4 text-blue-400" />
               </button>
 
               <button
@@ -116,8 +116,9 @@ export const Header: React.FC<HeaderProps> = ({ onCopyEmail }) => {
                 onClick={onCopyEmail}
                 className="p-2 text-white/80 hover:text-white bg-white/5 rounded-xl border border-white/10"
                 title="Скопировать e-mail"
+                aria-label="Скопировать e-mail"
               >
-                <Copy className="w-4 h-4 text-blue-400" />
+                <Mail className="w-4 h-4 text-blue-400" />
               </button>
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
