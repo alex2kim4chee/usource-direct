@@ -33,11 +33,3 @@ export interface RoadmapStage {
   badge: string;
   points: string[];
 }
-
-export interface EligibilityCategory {
-  status: 'approved' | 'review' | 'rejected';
-  title: string;
-  badgeText: string;
-  description: string;
-  items: string[];
-}

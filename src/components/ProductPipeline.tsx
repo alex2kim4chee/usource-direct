@@ -1,14 +1,49 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle2, AlertCircle, XCircle, ShieldCheck, ArrowRight, ExternalLink } from 'lucide-react';
+import { Search, CheckCircle2, AlertCircle, XCircle, ShieldCheck, Mail } from 'lucide-react';
+import {
+  checkEligibility,
+  type EligibilityCheckResult,
+  type EligibilityResultStatus,
+} from '../data/eligibilityCatalog';
+
+const resultStyles: Record<
+  EligibilityResultStatus,
+  {
+    wrapper: string;
+    icon: string;
+    Icon: typeof CheckCircle2;
+  }
+> = {
+  approved: {
+    wrapper: 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200',
+    icon: 'text-emerald-400',
+    Icon: CheckCircle2,
+  },
+  review: {
+    wrapper: 'bg-amber-950/40 border-amber-800/60 text-amber-200',
+    icon: 'text-amber-400',
+    Icon: AlertCircle,
+  },
+  restricted: {
+    wrapper: 'bg-orange-950/40 border-orange-800/60 text-orange-200',
+    icon: 'text-orange-400',
+    Icon: AlertCircle,
+  },
+  rejected: {
+    wrapper: 'bg-rose-950/40 border-rose-800/60 text-rose-200',
+    icon: 'text-rose-400',
+    Icon: XCircle,
+  },
+  unknown: {
+    wrapper: 'bg-sky-950/50 border-sky-500/70 text-sky-100',
+    icon: 'text-sky-300',
+    Icon: Search,
+  },
+};
 
 export const ProductPipeline: React.FC = () => {
   const [sampleInput, setSampleInput] = useState('');
-  const [simulatedResult, setSimulatedResult] = useState<{
-    status: 'approved' | 'review' | 'rejected' | null;
-    title: string;
-    details: string;
-    badge: string;
-  } | null>(null);
+  const [simulatedResult, setSimulatedResult] = useState<EligibilityCheckResult | null>(null);
 
   const pipelineSteps = [
     { num: 1, title: 'Ссылка от селлера', desc: 'Вы отправляете ссылку на товар из США' },
@@ -17,7 +52,7 @@ export const ProductPipeline: React.FC = () => {
     { num: 4, title: 'Расчет габаритов', desc: 'Оценка физического и объемного веса' },
     { num: 5, title: 'Возвратные риски', desc: 'Правила возврата у продавца в США' },
     { num: 6, title: 'Расчет цены селлера', desc: 'Калькуляция чистой себестоимости' },
-    { num: 7, title: 'Присвоение статуса', desc: 'Одобрен / Уточнение / Не подходит' },
+    { num: 7, title: 'Присвоение статуса', desc: 'Одобрен / Уточнение / Ограничено / Не подходит' },
     { num: 8, title: 'Доступ к продажам', desc: 'Публикация SKU в каталоге под заказ' },
   ];
 
@@ -25,30 +60,7 @@ export const ProductPipeline: React.FC = () => {
     e.preventDefault();
     if (!sampleInput.trim()) return;
 
-    const lower = sampleInput.toLowerCase();
-
-    if (lower.includes('оружие') || lower.includes('прицел') || lower.includes('нож') || lower.includes('бад') || lower.includes('лекарств')) {
-      setSimulatedResult({
-        status: 'rejected',
-        title: 'Статус: Не подходит',
-        details: 'Товар подпадает под категории с особым лицензированием, экспортным контролем США или таможенным запретом.',
-        badge: 'Не допускается',
-      });
-    } else if (lower.includes('косметик') || lower.includes('крем') || lower.includes('батаре') || lower.includes('электроник')) {
-      setSimulatedResult({
-        status: 'review',
-        title: 'Статус: Требует уточнения',
-        details: 'Необходим анализ состава на жидкости, спиртосодержащие компоненты или тип встроенного аккумулятора.',
-        badge: 'Индивидуальный комплаенс',
-      });
-    } else {
-      setSimulatedResult({
-        status: 'approved',
-        title: 'Статус: Одобрен для пилота',
-        details: 'Категория с высокой маржой и стабильной логистикой CDEK. Выкуп возможен строго по штучным заказам.',
-        badge: 'Готов к продажам',
-      });
-    }
+    setSimulatedResult(checkEligibility(sampleInput));
   };
 
   return (
@@ -97,6 +109,7 @@ export const ProductPipeline: React.FC = () => {
                 <div className="mt-3 pt-3 border-t border-white/10 flex items-center gap-1.5 text-[10px] font-mono">
                   <span className="text-emerald-400 font-bold">Одобрен</span> •{' '}
                   <span className="text-amber-400 font-bold">Уточнение</span> •{' '}
+                  <span className="text-orange-400 font-bold">Ограничено</span> •{' '}
                   <span className="text-rose-400 font-bold">Отклонен</span>
                 </div>
               )}
@@ -135,16 +148,12 @@ export const ProductPipeline: React.FC = () => {
           {simulatedResult && (
             <div
               className={`p-4 rounded-xl border flex items-start gap-3 transition-all ${
-                simulatedResult.status === 'approved'
-                  ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-200'
-                  : simulatedResult.status === 'review'
-                  ? 'bg-amber-950/40 border-amber-800/60 text-amber-200'
-                  : 'bg-rose-950/40 border-rose-800/60 text-rose-200'
+                resultStyles[simulatedResult.status].wrapper
               }`}
             >
-              {simulatedResult.status === 'approved' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
-              {simulatedResult.status === 'review' && <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />}
-              {simulatedResult.status === 'rejected' && <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />}
+              {React.createElement(resultStyles[simulatedResult.status].Icon, {
+                className: `w-5 h-5 ${resultStyles[simulatedResult.status].icon} shrink-0 mt-0.5`,
+              })}
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="font-bold text-sm">{simulatedResult.title}</span>
@@ -153,6 +162,15 @@ export const ProductPipeline: React.FC = () => {
                   </span>
                 </div>
                 <p className="text-xs leading-relaxed opacity-90">{simulatedResult.details}</p>
+                {simulatedResult.status === 'unknown' && simulatedResult.mailtoHref && (
+                  <a
+                    href={simulatedResult.mailtoHref}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-sky-300 px-3 py-2 text-xs font-bold text-black transition-colors hover:bg-sky-200"
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                    <span>Отправить запрос</span>
+                  </a>
+                )}
               </div>
             </div>
           )}

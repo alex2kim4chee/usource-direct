@@ -1,20 +1,65 @@
 import React, { useState } from 'react';
-import { ELIGIBILITY_CATEGORIES } from '../data/landingData';
-import { CheckCircle2, AlertCircle, XCircle, Search, Filter, Shield } from 'lucide-react';
+import {
+  ELIGIBILITY_CATEGORIES,
+  buildEligibilityMailto,
+  categoryMatchesQuery,
+  type EligibilityStatus,
+} from '../data/eligibilityCatalog';
+import { CheckCircle2, AlertCircle, XCircle, Search, Shield, Mail } from 'lucide-react';
+
+type EligibilityFilter = 'all' | EligibilityStatus;
+
+const statusStyles: Record<
+  EligibilityStatus,
+  {
+    card: string;
+    badge: string;
+    icon: string;
+    Icon: typeof CheckCircle2;
+  }
+> = {
+  approved: {
+    card: 'bg-white/5 border-emerald-500/30',
+    badge: 'bg-emerald-950/80 text-emerald-300 border-emerald-800',
+    icon: 'text-emerald-400',
+    Icon: CheckCircle2,
+  },
+  review: {
+    card: 'bg-white/5 border-amber-500/30',
+    badge: 'bg-amber-950/80 text-amber-300 border-amber-800',
+    icon: 'text-amber-400',
+    Icon: AlertCircle,
+  },
+  restricted: {
+    card: 'bg-white/5 border-orange-500/30',
+    badge: 'bg-orange-950/80 text-orange-300 border-orange-800',
+    icon: 'text-orange-400',
+    Icon: AlertCircle,
+  },
+  rejected: {
+    card: 'bg-white/5 border-rose-500/30',
+    badge: 'bg-rose-950/80 text-rose-300 border-rose-800',
+    icon: 'text-rose-400',
+    Icon: XCircle,
+  },
+};
 
 export const ProductEligibility: React.FC = () => {
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'approved' | 'review' | 'rejected'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<EligibilityFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const hasSearchQuery = searchQuery.trim().length > 0;
+  const hasAnySearchMatch =
+    !hasSearchQuery ||
+    ELIGIBILITY_CATEGORIES.some((cat) => categoryMatchesQuery(cat, searchQuery));
 
   const filteredCategories = ELIGIBILITY_CATEGORIES.filter((cat) => {
     if (selectedFilter !== 'all' && cat.status !== selectedFilter) return false;
-    if (!searchQuery.trim()) return true;
-
-    const query = searchQuery.toLowerCase();
-    const matchesTitle = cat.title.toLowerCase().includes(query);
-    const matchesItem = cat.items.some((item) => item.toLowerCase().includes(query));
-    return matchesTitle || matchesItem;
+    return categoryMatchesQuery(cat, searchQuery);
   });
+
+  const showUnknownRequest = hasSearchQuery && !hasAnySearchMatch;
+  const showFilterMismatch = hasSearchQuery && hasAnySearchMatch && filteredCategories.length === 0;
 
   return (
     <section className="py-20 bg-[#0a0a0b] border-t border-white/10 relative">
@@ -72,6 +117,17 @@ export const ProductEligibility: React.FC = () => {
               <span>Проверка</span>
             </button>
             <button
+              onClick={() => setSelectedFilter('restricted')}
+              className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                selectedFilter === 'restricted'
+                  ? 'bg-orange-500 text-black font-bold shadow-md'
+                  : 'bg-white/5 text-orange-400 hover:text-orange-300 border border-white/10'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Ограничено</span>
+            </button>
+            <button
               onClick={() => setSelectedFilter('rejected')}
               className={`px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
                 selectedFilter === 'rejected'
@@ -99,33 +155,24 @@ export const ProductEligibility: React.FC = () => {
         </div>
 
         {/* Category Cards Display */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
-          {filteredCategories.map((cat, idx) => (
+        {filteredCategories.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+          {filteredCategories.map((cat) => {
+            const style = statusStyles[cat.status];
+            return (
             <div
-              key={idx}
-              className={`p-6 rounded-3xl backdrop-blur-xl border flex flex-col justify-between shadow-2xl transition-all ${
-                cat.status === 'approved'
-                  ? 'bg-white/5 border-emerald-500/30'
-                  : cat.status === 'review'
-                  ? 'bg-white/5 border-amber-500/30'
-                  : 'bg-white/5 border-rose-500/30'
-              }`}
+              key={cat.id}
+              className={`p-6 rounded-3xl backdrop-blur-xl border flex flex-col justify-between shadow-2xl transition-all ${style.card}`}
             >
               <div>
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <span className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border ${
-                    cat.status === 'approved'
-                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-                      : cat.status === 'review'
-                      ? 'bg-amber-950/80 text-amber-300 border-amber-800'
-                      : 'bg-rose-950/80 text-rose-300 border-rose-800'
-                  }`}>
+                  <span className={`text-[11px] font-mono font-bold px-2.5 py-1 rounded-full border ${style.badge}`}>
                     {cat.badgeText}
                   </span>
 
-                  {cat.status === 'approved' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-                  {cat.status === 'review' && <AlertCircle className="w-5 h-5 text-amber-400" />}
-                  {cat.status === 'rejected' && <XCircle className="w-5 h-5 text-rose-400" />}
+                  {React.createElement(style.Icon, {
+                    className: `w-5 h-5 ${style.icon}`,
+                  })}
                 </div>
 
                 <h3 className="text-base font-bold text-white mb-2">{cat.title}</h3>
@@ -145,8 +192,37 @@ export const ProductEligibility: React.FC = () => {
                 Комплаенс фильтр USource Direct
               </div>
             </div>
-          ))}
-        </div>
+            );
+          })}
+          </div>
+        )}
+
+        {showUnknownRequest && (
+          <div className="mb-10 max-w-3xl mx-auto rounded-3xl border border-sky-400/60 bg-sky-950/50 p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-sky-300 text-black">
+              <Search className="h-5 w-5" />
+            </div>
+            <h3 className="mb-2 text-base font-bold text-white">
+              Товар не обнаружен ни в одном из наших списков
+            </h3>
+            <p className="mx-auto mb-4 max-w-2xl text-xs leading-relaxed text-sky-100/80">
+              Это не означает автоматический отказ или одобрение. Отправьте запрос, и мы проверим конкретную ссылку, состав, продавца и маршрут доставки.
+            </p>
+            <a
+              href={buildEligibilityMailto(searchQuery)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-300 px-4 py-3 text-xs font-bold text-black transition-colors hover:bg-sky-200"
+            >
+              <Mail className="h-4 w-4" />
+              <span>Отправить запрос на проверку</span>
+            </a>
+          </div>
+        )}
+
+        {showFilterMismatch && (
+          <div className="mb-10 max-w-3xl mx-auto rounded-2xl border border-white/10 bg-white/5 p-4 text-center text-xs text-white/60">
+            Совпадение есть в другом статусе. Выберите «Все категории», чтобы увидеть результат.
+          </div>
+        )}
 
         {/* Disclaimer */}
         <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-xs text-white/50 text-center max-w-3xl mx-auto backdrop-blur-md">
