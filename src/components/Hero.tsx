@@ -42,7 +42,7 @@ export const Hero: React.FC<HeroProps> = ({ onCopyEmail }) => {
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-300 to-red-400">
                 без закупки партий
               </span>{' '}
-              и риска заморозки
+              и риска потери капитала
             </h1>
 
             {/* Subheadline */}
@@ -82,7 +82,7 @@ export const Hero: React.FC<HeroProps> = ({ onCopyEmail }) => {
                 title="Скопировать e-mail"
               >
                 <Copy className="w-4 h-4 text-blue-400" />
-                <span className="hidden sm:inline">go@usourcedirect.com</span>
+                <span>{EMAIL_ADDRESS}</span>
               </button>
             </div>
 
